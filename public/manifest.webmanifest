@@ -1,0 +1,11 @@
+{
+  "name": "智慧任務與時間管理",
+  "short_name": "任務管理",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf7ef",
+  "theme_color": "#5a8f7b",
+  "icons": []
+}
+
+

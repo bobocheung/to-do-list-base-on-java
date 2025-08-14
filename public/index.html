@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>智慧任務與時間管理 - Hand‑Drawn UI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="manifest" href="/manifest.webmanifest">
+  </head>
+  <body>
+    <div class="paper">
+      <header class="header">
+        <h1>📝 智慧任務與時間管理</h1>
+        <p class="subtitle">手繪風介面 · 更貼近人的節奏</p>
+      </header>
+
+      <section class="controls">
+        <form id="taskForm" class="task-form">
+          <div class="row">
+            <div class="view-switch">
+              <button type="button" class="btn" data-view="day">日</button>
+              <button type="button" class="btn" data-view="week">週</button>
+              <button type="button" class="btn primary" data-view="month">月</button>
+              <span id="currentDateLabel" class="pill" style="margin-left:8px"></span>
+              <button type="button" class="btn" id="btnPrev">←</button>
+              <button type="button" class="btn" id="btnToday">今天</button>
+              <button type="button" class="btn" id="btnNext">→</button>
+            </div>
+          </div>
+          <div class="row">
+            <label>標題</label>
+            <input name="title" placeholder="例如：演算法作業 - 完成第3題" required />
+          </div>
+          <div class="row">
+            <label>描述</label>
+            <textarea name="description" rows="2" placeholder="補充重點、資料連結..."></textarea>
+          </div>
+          <div class="row two">
+            <div>
+              <label>優先級</label>
+              <select name="priority">
+                <option>LOW</option>
+                <option selected>MEDIUM</option>
+                <option>HIGH</option>
+                <option>CRITICAL</option>
+              </select>
+            </div>
+            <div>
+              <label>估時(分鐘)</label>
+              <input name="estimatedMinutes" type="number" min="1" step="1" value="30" />
+            </div>
+          </div>
+          <div class="row two">
+            <div>
+              <label>截止(yyyy-MM-dd HH:mm)</label>
+              <input name="dueDateTime" placeholder="2025-12-31 23:59" />
+            </div>
+            <div>
+              <label>標籤(以 ; 分隔)</label>
+              <input name="tags" placeholder="school;java;lab" />
+            </div>
+          </div>
+          <div class="row two">
+            <div>
+              <label>類別</label>
+              <input name="category" placeholder="work / personal / study" />
+            </div>
+            <div>
+              <label>實際時間(分，可空白)</label>
+              <input name="actualMinutes" type="number" min="0" step="1" />
+            </div>
+          </div>
+          <div class="row two">
+            <div>
+              <label>提前提醒(分，可空白預設60)</label>
+              <input name="reminderBeforeMinutes" type="number" min="0" step="5" />
+            </div>
+            <div>
+              <label>排序序號(可空白)</label>
+              <input name="sortOrder" type="number" step="1" />
+            </div>
+          </div>
+          <div class="row">
+            <button type="submit" class="btn primary">新增任務</button>
+            <button id="btnRefresh" type="button" class="btn">重新整理</button>
+            <label class="chk"><input id="chkSuggested" type="checkbox" /> 使用建議排序</label>
+          </div>
+        </form>
+      </section>
+
+      <section>
+        <div class="row">
+          <button id="btnExport" type="button" class="btn">匯出 JSON</button>
+          <button id="btnBatchComplete" type="button" class="btn">批次完成（選取）</button>
+          <button id="btnBatchDelete" type="button" class="btn">批次刪除（選取）</button>
+        </div>
+        <ul id="taskList" class="task-list" aria-live="polite"></ul>
+        <div id="stats" class="paper" aria-live="polite" style="margin-top:16px; padding:12px;">
+          <h3>📈 手繪統計</h3>
+          <svg id="chart" width="100%" height="160" viewBox="0 0 600 160"></svg>
+        </div>
+
+        <div id="calendar" class="calendar"></div>
+      </section>
+
+      <!-- 手繪風彈窗（編輯/新增） -->
+      <div id="modal" class="modal hidden" aria-hidden="true" role="dialog">
+        <div class="modal-backdrop"></div>
+        <div class="modal-card" role="document">
+          <h3 id="modalTitle">編輯任務</h3>
+          <form id="modalForm" class="task-form">
+            <input type="hidden" name="id" />
+            <div class="row"><label>標題</label><input name="title" required /></div>
+            <div class="row"><label>描述</label><textarea name="description" rows="3"></textarea></div>
+            <div class="row two">
+              <div><label>優先級</label>
+                <select name="priority"><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select>
+              </div>
+              <div><label>狀態</label>
+                <select name="status"><option value="PENDING">未開始</option><option value="IN_PROGRESS">進行中</option><option value="COMPLETED">已完成</option></select>
+              </div>
+            </div>
+            <div class="row two">
+              <div><label>截止(yyyy-MM-dd HH:mm)</label><input name="dueDateTime" /></div>
+              <div><label>估時(分)</label><input name="estimatedMinutes" type="number" min="1" value="30" /></div>
+            </div>
+            <div class="row two">
+              <div><label>類別</label><input name="category" /></div>
+              <div><label>實際時間(分)</label><input name="actualMinutes" type="number" min="0" /></div>
+            </div>
+            <div class="row two">
+              <div><label>提前提醒(分)</label><input name="reminderBeforeMinutes" type="number" min="0" /></div>
+              <div><label>標籤(;分隔)</label><input name="tags" /></div>
+            </div>
+            <div class="row">
+              <button type="submit" class="btn primary">儲存</button>
+              <button type="button" class="btn" id="btnModalCancel">取消</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', ()=>{
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
+    <script src="app.js"></script>
+  </body>
+  </html>
+
+
