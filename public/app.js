@@ -357,11 +357,11 @@
         ev.textContent = t.title;
         const cat=(t.category||'').toLowerCase(); if(cat==='work') ev.style.background='#e6f7ff'; else if(cat==='personal') ev.style.background='#fff1f0'; else if(cat==='study') ev.style.background='#f9fbe7';
         const handle = document.createElement('div'); handle.className='event-handle'; ev.appendChild(handle);
-        // 拖拽上下調整時長（僅前端視覺，示意）
+        // 拖拽上下調整時長（釋放後呼叫 API 更新 estimatedMinutes）
         let resizing=false, startY=0, startH=0;
         handle.addEventListener('mousedown',(e)=>{ resizing=true; startY=e.clientY; startH=ev.offsetHeight; e.preventDefault(); });
         document.addEventListener('mousemove',(e)=>{ if(!resizing) return; const dy=e.clientY-startY; ev.style.height=Math.max(18, startH+dy)+'px'; });
-        document.addEventListener('mouseup',()=>{ if(resizing){ resizing=false; }});
+        document.addEventListener('mouseup',async ()=>{ if(resizing){ resizing=false; const h=parseFloat(ev.style.height); const minutes=Math.max(5, Math.round(h/hourHeight*60)); await fetch(`/tasks/${t.id}/duration`, { method:'PATCH', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({minutes}).toString() }); fetchTasks(); }});
         col.appendChild(ev);
       });
       timeContainer.appendChild(col);
@@ -417,6 +417,9 @@
     if (e.key==='2'){ view='week'; fetchTasks(); }
     if (e.key==='3'){ view='month'; fetchTasks(); }
     if (e.key.toLowerCase()==='t'){ anchor=new Date(); fetchTasks(); }
+    if (e.key==='ArrowLeft'){ if(view==='day') anchor=addDays(anchor,-1); else if(view==='week') anchor=addDays(anchor,-7); else anchor=new Date(anchor.getFullYear(), anchor.getMonth()-1, 1); fetchTasks(); }
+    if (e.key==='ArrowRight'){ if(view==='day') anchor=addDays(anchor,1); else if(view==='week') anchor=addDays(anchor,7); else anchor=new Date(anchor.getFullYear(), anchor.getMonth()+1, 1); fetchTasks(); }
+    if (e.key==='Enter' && view!=='month'){ const title=prompt('快速新增於當前視圖日期'); if(title){ const yyyy=anchor.getFullYear(); const mm=('0'+(anchor.getMonth()+1)).slice(-2); const dd=('0'+anchor.getDate()).slice(-2); fetch('/tasks', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({title, dueDateTime:`${yyyy}-${mm}-${dd} 12:00`, estimatedMinutes:'30', priority:'MEDIUM'}).toString()}).then(()=>fetchTasks()); }}
   });
 
   // ======= Modal (手繪風編輯表單) =======

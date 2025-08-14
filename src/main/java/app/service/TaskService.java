@@ -112,6 +112,15 @@ public class TaskService {
         return true;
     }
 
+    public boolean updateDuration(String id, int minutes) {
+        Optional<Task> opt = repository.findById(id);
+        if (opt.isEmpty()) return false;
+        Task t = opt.get();
+        t.setEstimatedMinutes(Math.max(1, minutes));
+        repository.upsert(t);
+        return true;
+    }
+
     public boolean updateTask(String id,
                               String title,
                               String description,

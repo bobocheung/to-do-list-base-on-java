@@ -187,6 +187,14 @@ public class MiniHttpServer {
                     sendJson(exchange, ok?200:400, ok?"{\"ok\":true}":"{\"ok\":false}");
                     return;
                 }
+                if (path.matches("^/tasks/[a-zA-Z0-9\\-]+/duration$")) {
+                    String id = path.substring("/tasks/".length(), path.length()-"/duration".length());
+                    Map<String,String> form = parseForm(exchange);
+                    int m = 30; try { m = Integer.parseInt(form.getOrDefault("minutes","30")); } catch(Exception ignored){}
+                    boolean ok = taskService.updateDuration(id, m);
+                    sendJson(exchange, ok?200:404, ok?"{\"ok\":true}":"{\"ok\":false}");
+                    return;
+                }
             }
 
             exchange.sendResponseHeaders(405, -1);
