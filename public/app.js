@@ -16,6 +16,8 @@
   const btnMakeNotes = el('#btnMakeNotes');
   const btnClearSel = el('#btnClearSel');
   const btnBatchRescheduleToSel = el('#btnBatchRescheduleToSel');
+  const timeline = el('#timeline');
+  const timeContainer = el('#timeContainer');
   let view = 'month';
   let anchor = new Date();
   let multiSel = new Set();
@@ -246,6 +248,9 @@
     calEl.innerHTML = '';
     currentDateLabel.textContent = anchor.toISOString().slice(0,10);
     const grid = document.createElement('div'); grid.className='cal-grid';
+    // 在 Day/Week 視圖同步渲染時間軸
+    if (view!=='month') renderTimeline(tasks);
+    else { timeline.classList.add('hidden'); timeContainer.innerHTML=''; }
     let days = [];
     if (view==='day') {
       days = [new Date(anchor)];
@@ -320,6 +325,47 @@
         cell.appendChild(addBtn);
       });
     } catch(e) {}
+  }
+
+  function renderTimeline(tasks){
+    timeline.classList.remove('hidden');
+    timeContainer.innerHTML='';
+    const hours = 24, hourHeight = 37.5; // 對應 CSS
+    const cols = view==='day' ? 1 : 7;
+    timeContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    const base = view==='day' ? [new Date(anchor)] : Array.from({length:7},(_,i)=>addDays(startOfWeek(anchor), i));
+    // 過濾範圍
+    const start = base[0], end = base[base.length-1];
+    const map = tasks.reduce((m,t)=>{ if(!t.dueDateTime) return m; const d=new Date(t.dueDateTime); const k = d.toISOString().slice(0,10); (m[k]||(m[k]=[])).push(t); return m; }, {});
+    base.forEach(d=>{
+      const col = document.createElement('div'); col.className='time-col';
+      // 小時刻度
+      for(let h=0; h<hours; h++){
+        const line = document.createElement('div'); line.className='time-hour'; line.style.top = `${h*hourHeight}px`;
+        col.appendChild(line);
+      }
+      // 事件方塊（用 dueDate 與 estimatedMinutes 粗略估計）
+      const key = fmtDate(d);
+      (map[key]||[]).forEach(t=>{
+        if(!t.dueDateTime){ return; }
+        const dt = new Date(t.dueDateTime);
+        const endMin = dt.getHours()*60 + dt.getMinutes();
+        const startMin = Math.max(0, endMin - (t.estimatedMinutes||30));
+        const top = startMin/60*hourHeight;
+        const height = Math.max(18, (t.estimatedMinutes||30)/60*hourHeight);
+        const ev = document.createElement('div'); ev.className='event-block'; ev.style.top=`${top}px`; ev.style.height=`${height}px`;
+        ev.textContent = t.title;
+        const cat=(t.category||'').toLowerCase(); if(cat==='work') ev.style.background='#e6f7ff'; else if(cat==='personal') ev.style.background='#fff1f0'; else if(cat==='study') ev.style.background='#f9fbe7';
+        const handle = document.createElement('div'); handle.className='event-handle'; ev.appendChild(handle);
+        // 拖拽上下調整時長（僅前端視覺，示意）
+        let resizing=false, startY=0, startH=0;
+        handle.addEventListener('mousedown',(e)=>{ resizing=true; startY=e.clientY; startH=ev.offsetHeight; e.preventDefault(); });
+        document.addEventListener('mousemove',(e)=>{ if(!resizing) return; const dy=e.clientY-startY; ev.style.height=Math.max(18, startH+dy)+'px'; });
+        document.addEventListener('mouseup',()=>{ if(resizing){ resizing=false; }});
+        col.appendChild(ev);
+      });
+      timeContainer.appendChild(col);
+    });
   }
 
   document.querySelectorAll('.view-switch [data-view]')?.forEach(btn=>{
