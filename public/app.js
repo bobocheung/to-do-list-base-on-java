@@ -381,6 +381,7 @@
     modalForm.actualMinutes.value = task.actualMinutes||'';
     modalForm.reminderBeforeMinutes.value = task.reminderBeforeMinutes||'';
     modalForm.tags.value = (task.tags||[]).join(';');
+    modalForm.setAttribute('data-kind','task');
   }
   function closeModal(){ modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); }
   el('#btnModalCancel')?.addEventListener('click', closeModal);
@@ -399,10 +400,13 @@
   });
   modalForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
-    const id = modalForm.id.value;
-    const body = new URLSearchParams(new FormData(modalForm));
-    await fetch(`/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
-    closeModal(); fetchTasks();
+    if (modalForm.getAttribute('data-kind')==='task'){
+      const id = modalForm.id.value;
+      const body = new URLSearchParams(new FormData(modalForm));
+      await fetch(`/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+      closeModal(); fetchTasks();
+      return;
+    }
   });
 
   // Note Modal（簡化：用同一張卡，但只啟用 content/date/id）

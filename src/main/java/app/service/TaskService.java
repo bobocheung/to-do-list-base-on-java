@@ -59,6 +59,7 @@ public class TaskService {
         t.setActualMinutes(null);
         t.setReminderBeforeMinutes(null);
         t.setSortOrder(null);
+        t.setRecurrence("NONE");
         repository.upsert(t);
         return t;
     }

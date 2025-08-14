@@ -21,6 +21,7 @@ public class Task {
     private Integer actualMinutes; // 實際花費時間（分鐘）
     private Integer reminderBeforeMinutes; // 提前提醒（分鐘），null 表示預設 60
     private Integer sortOrder; // 拖拽排序序號，數字越小越前
+    private String recurrence; // 重覆規則：NONE/DAILY/WEEKLY/MONTHLY
 
     public Task() {
         this.tags = new ArrayList<>();
@@ -122,6 +123,9 @@ public class Task {
 
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+
+    public String getRecurrence() { return recurrence; }
+    public void setRecurrence(String recurrence) { this.recurrence = recurrence; }
 
     @Override
     public boolean equals(Object o) {

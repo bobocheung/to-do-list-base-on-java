@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 public class FileTaskRepository implements TaskRepository {
     private static final String[] HEADER = new String[]{
-            "id","title","description","priority","dueDateTime","estimatedMinutes","status","createdAt","completedAt","tags","category","actualMinutes","reminderBeforeMinutes","sortOrder"
+            "id","title","description","priority","dueDateTime","estimatedMinutes","status","createdAt","completedAt","tags","category","actualMinutes","reminderBeforeMinutes","sortOrder","recurrence"
     };
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.getDefault());
 
@@ -87,6 +87,7 @@ public class FileTaskRepository implements TaskRepository {
             t.setActualMinutes(cols.size()>11 && !cols.get(11).isEmpty() ? Integer.parseInt(cols.get(11)) : null);
             t.setReminderBeforeMinutes(cols.size()>12 && !cols.get(12).isEmpty() ? Integer.parseInt(cols.get(12)) : null);
             t.setSortOrder(cols.size()>13 && !cols.get(13).isEmpty() ? Integer.parseInt(cols.get(13)) : null);
+            t.setRecurrence(cols.size()>14 ? emptyToNull(cols.get(14)) : null);
             return t;
         } catch (Exception e) {
             return null;
@@ -115,6 +116,7 @@ public class FileTaskRepository implements TaskRepository {
                 cols.add(t.getActualMinutes()==null?"":String.valueOf(t.getActualMinutes()));
                 cols.add(t.getReminderBeforeMinutes()==null?"":String.valueOf(t.getReminderBeforeMinutes()));
                 cols.add(t.getSortOrder()==null?"":String.valueOf(t.getSortOrder()));
+                cols.add(t.getRecurrence()==null?"":t.getRecurrence());
                 writer.write(CsvUtil.join(cols));
                 writer.newLine();
             }
