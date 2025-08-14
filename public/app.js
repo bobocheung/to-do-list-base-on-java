@@ -8,10 +8,14 @@
   const currentDateLabel = el('#currentDateLabel');
   const weekStartSelect = el('#weekStartSelect');
   const searchInput = el('#searchInput');
+  const statusSelect = el('#statusSelect');
+  const prioritySelect = el('#prioritySelect');
+  const tagInput = el('#tagInput');
   const calToolbar = el('#calendarToolbar');
   const selCount = el('#selCount');
   const btnMakeNotes = el('#btnMakeNotes');
   const btnClearSel = el('#btnClearSel');
+  const btnBatchRescheduleToSel = el('#btnBatchRescheduleToSel');
   let view = 'month';
   let anchor = new Date();
   let multiSel = new Set();
@@ -245,7 +249,13 @@
     }
     // 搜尋/過濾
     const q = (searchInput?.value||'').trim().toLowerCase();
+    const st = statusSelect?.value||'';
+    const pr = prioritySelect?.value||'';
+    const tg = (tagInput?.value||'').trim().toLowerCase();
     if (q) tasks = tasks.filter(t => (t.title||'').toLowerCase().includes(q) || (t.tags||[]).some(tag=>tag.toLowerCase().includes(q)) );
+    if (st) tasks = tasks.filter(t=> (t.status||'').toUpperCase()===st);
+    if (pr) tasks = tasks.filter(t=> (t.priority||'').toUpperCase()===pr);
+    if (tg) tasks = tasks.filter(t=> (t.tags||[]).some(x=>x.toLowerCase()===tg));
     const map = tasks.reduce((m,t)=>{ if(!t.dueDateTime) return m; const k=t.dueDateTime.slice(0,10); (m[k]||(m[k]=[])).push(t); return m; }, {});
     days.forEach(d=>{
       const cell = document.createElement('div'); cell.className='cal-cell';
@@ -256,6 +266,8 @@
       cell.addEventListener('click', (ev)=>{ if (!ev.shiftKey) return; if (multiSel.has(k)) multiSel.delete(k); else multiSel.add(k); updateSelUi(); });
       (map[k]||[]).forEach(t=>{
         const a = document.createElement('a'); a.href='#'; a.className='cal-item'; a.textContent = t.title; a.title = t.title;
+        // 類別色彩
+        const cat = (t.category||'').toLowerCase(); if(cat==='work') a.classList.add('cat-work'); else if(cat==='personal') a.classList.add('cat-personal'); else if(cat==='study') a.classList.add('cat-study');
         // 拖拽改期：拖起任務 id
         a.draggable = true;
         a.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/task', t.id); });
@@ -263,9 +275,11 @@
         cell.appendChild(a);
       });
       // 放下到某天 -> reschedule
-      cell.addEventListener('dragover', (ev)=>{ if (ev.dataTransfer.types.includes('text/task')) ev.preventDefault(); });
+      cell.addEventListener('dragover', (ev)=>{ if (ev.dataTransfer.types.includes('text/task')) { ev.preventDefault(); cell.classList.add('drag-hover'); }});
+      cell.addEventListener('dragleave', ()=> cell.classList.remove('drag-hover'));
       cell.addEventListener('drop', async (ev)=>{
         ev.preventDefault();
+        cell.classList.remove('drag-hover');
         const taskId = ev.dataTransfer.getData('text/task');
         if(taskId){
           await fetch(`/tasks/${taskId}/reschedule`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ date: k }).toString() });
@@ -312,6 +326,7 @@
   });
   weekStartSelect?.addEventListener('change', ()=>{ localStorage.setItem('weekStart', weekStartSelect.value); fetchTasks(); });
   (function initWeekStart(){ const ws=localStorage.getItem('weekStart')||'mon'; weekStartSelect.value=ws; })();
+  [searchInput, statusSelect, prioritySelect, tagInput].forEach(x=> x && x.addEventListener('change', fetchTasks));
 
   function updateSelUi(){
     selCount.textContent = multiSel.size;
@@ -328,6 +343,15 @@
       await fetch('/notes', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ date:k, content }).toString() });
     }
     multiSel.clear(); fetchTasks();
+  });
+  btnBatchRescheduleToSel?.addEventListener('click', async ()=>{
+    const ids = Array.from(document.querySelectorAll('input[type=checkbox][data-select]:checked')).map(x=>x.getAttribute('data-select'));
+    if(ids.length===0 || multiSel.size===0){ alert('請先勾選清單中的任務，並在日曆選擇至少一天'); return; }
+    const target = Array.from(multiSel).sort()[0];
+    for (const id of ids) {
+      await fetch(`/tasks/${id}/reschedule`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ date: target }).toString() });
+    }
+    fetchTasks();
   });
 
   // 視圖切換快捷鍵 1/2/3，T 回今天

@@ -107,9 +107,25 @@
       <section>
         <div class="row">
           <input id="searchInput" class="search" placeholder="搜尋標題或標籤（Enter 確認）" />
+          <select id="statusSelect" class="search" style="width:150px" title="狀態篩選">
+            <option value="">狀態：全部</option>
+            <option value="PENDING">未開始</option>
+            <option value="IN_PROGRESS">進行中</option>
+            <option value="COMPLETED">已完成</option>
+            <option value="CANCELLED">已取消</option>
+          </select>
+          <select id="prioritySelect" class="search" style="width:150px" title="優先級篩選">
+            <option value="">優先：全部</option>
+            <option>LOW</option>
+            <option>MEDIUM</option>
+            <option>HIGH</option>
+            <option>CRITICAL</option>
+          </select>
+          <input id="tagInput" class="search" placeholder="標籤（單一）" style="width:160px" />
           <button id="btnExport" type="button" class="btn">匯出 JSON</button>
           <button id="btnBatchComplete" type="button" class="btn">批次完成（選取）</button>
           <button id="btnBatchDelete" type="button" class="btn">批次刪除（選取）</button>
+          <button id="btnBatchRescheduleToSel" type="button" class="btn" title="將清單勾選任務改期至所選日期（多選時取最早）">批次改期 → 已選日期</button>
         </div>
         <ul id="taskList" class="task-list" aria-live="polite"></ul>
         <div id="stats" class="paper" aria-live="polite" style="margin-top:16px; padding:12px;">
