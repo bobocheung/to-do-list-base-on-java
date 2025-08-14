@@ -132,6 +132,16 @@
     a.href = url; a.download = 'tasks.json'; a.click();
     URL.revokeObjectURL(url);
   });
+  // ICS 匯出（依目前視圖日期範圍）
+  el('#btnIcs')?.addEventListener('click', (e)=>{
+    e.preventDefault();
+    let start, end;
+    if (view==='day') { start = end = anchor; }
+    else if (view==='week') { const s=startOfWeek(anchor); start=s; end=addDays(s,6); }
+    else { const s=new Date(anchor.getFullYear(), anchor.getMonth(), 1); const startW=startOfWeek(s); start=startW; end=addDays(startW,41); }
+    const url = `/ics?start=${fmtDate(start)}&end=${fmtDate(end)}`;
+    window.location.href = url;
+  });
 
   // 批次完成/刪除
   function getSelectedIds(){ return Array.from(document.querySelectorAll('input[type=checkbox][data-select]:checked')).map(x=>x.getAttribute('data-select')); }

@@ -45,6 +45,7 @@ public class MiniHttpServer {
         // calendar notes
         NoteService noteService = new NoteService(new FileNoteRepository(Path.of("data","notes.csv")));
         server.createContext("/notes", new NotesHandler(noteService));
+        server.createContext("/ics", new IcsHandler(taskService));
         server.createContext("/", new StaticHandler(Paths.get("public")));
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
@@ -355,6 +356,57 @@ public class MiniHttpServer {
             }
             return sb.toString();
         }
+    }
+
+    // ICS export handler
+    static class IcsHandler implements HttpHandler {
+        private final TaskService taskService;
+        IcsHandler(TaskService s){ this.taskService = s; }
+        @Override public void handle(HttpExchange exchange) throws IOException {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) { exchange.sendResponseHeaders(405,-1); return; }
+            Map<String,String> q = new HashMap<>();
+            String raw = exchange.getRequestURI().getQuery();
+            if (raw!=null) for(String p: raw.split("&")){ int i=p.indexOf('='); if(i>0) q.put(URLDecoder.decode(p.substring(0,i), StandardCharsets.UTF_8), URLDecoder.decode(p.substring(i+1), StandardCharsets.UTF_8)); }
+            LocalDate start = q.containsKey("start") ? LocalDate.parse(q.get("start")) : LocalDate.now().minusDays(7);
+            LocalDate end = q.containsKey("end") ? LocalDate.parse(q.get("end")) : LocalDate.now().plusDays(35);
+            List<Task> tasks = taskService.listAll().stream()
+                    .filter(t -> t.getDueDateTime()!=null && !t.getDueDateTime().toLocalDate().isBefore(start) && !t.getDueDateTime().toLocalDate().isAfter(end))
+                    .toList();
+            String ics = buildIcs(tasks);
+            byte[] body = ics.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "text/calendar; charset=utf-8");
+            exchange.getResponseHeaders().set("Content-Disposition", "attachment; filename=tasks.ics");
+            exchange.sendResponseHeaders(200, body.length);
+            try(OutputStream os = exchange.getResponseBody()){ os.write(body); }
+        }
+
+        private String buildIcs(List<Task> tasks){
+            StringBuilder sb = new StringBuilder();
+            sb.append("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SmartTasks//EN\r\n");
+            for (Task t : tasks) {
+                java.time.LocalDateTime end = t.getDueDateTime();
+                java.time.LocalDateTime start = end;
+                if (end != null) start = end.minusMinutes(Math.max(1, t.getEstimatedMinutes()));
+                String dtStart = fmtIcs(start);
+                String dtEnd = fmtIcs(end);
+                sb.append("BEGIN:VEVENT\r\n")
+                        .append("UID:").append(t.getId()).append("\r\n")
+                        .append("DTSTART:").append(dtStart).append("\r\n")
+                        .append("DTEND:").append(dtEnd).append("\r\n")
+                        .append("SUMMARY:").append(escapeIcs(t.getTitle()==null?"":t.getTitle())).append("\r\n")
+                        .append("DESCRIPTION:").append(escapeIcs(t.getDescription()==null?"":t.getDescription())).append("\r\n")
+                        .append("END:VEVENT\r\n");
+            }
+            sb.append("END:VCALENDAR\r\n");
+            return sb.toString();
+        }
+
+        private String fmtIcs(java.time.LocalDateTime dt){
+            if (dt == null) dt = java.time.LocalDateTime.now();
+            java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+            return dt.format(f);
+        }
+        private String escapeIcs(String s){ return s.replace("\\", "\\\\").replace(";","\\;").replace(",","\\,").replace("\n","\\n"); }
     }
     // Notes handler
     static class NotesHandler implements HttpHandler {
