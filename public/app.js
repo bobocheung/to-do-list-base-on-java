@@ -15,6 +15,7 @@
     const data = await res.json();
     renderTasks(data);
     renderStats(data);
+    renderCalendar(data);
   }
 
   function escapeHtml(str){
@@ -136,7 +137,7 @@
 
   // 快捷鍵：r 重新整理，n 聚焦標題欄位
   window.addEventListener('keydown', (e)=>{
-    if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+    if (e.target && ['INPUT','TEXTAREA','SELECT','BUTTON','A'].includes(e.target.tagName)) return;
     if (e.key === 'r') { e.preventDefault(); fetchTasks(); }
     if (e.key === 'n') { e.preventDefault(); formEl.querySelector('input[name=title]').focus(); }
   });
@@ -193,6 +194,17 @@
       rect.setAttribute('stroke', '#222');
       rect.setAttribute('stroke-width', '3');
       svg.appendChild(rect);
+      // 數值標記
+      const tx = document.createElementNS('http://www.w3.org/2000/svg','text');
+      tx.setAttribute('x', x + barW/2); tx.setAttribute('y', y - 6);
+      tx.setAttribute('text-anchor','middle'); tx.setAttribute('font-size','12'); tx.textContent = v;
+      svg.appendChild(tx);
+      // 日期刻度
+      const dayLbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+      dayLbl.setAttribute('x', x + barW/2); dayLbl.setAttribute('y', h - 6);
+      dayLbl.setAttribute('text-anchor','middle'); dayLbl.setAttribute('font-size','10');
+      dayLbl.textContent = days[idx].slice(5); // MM-dd
+      svg.appendChild(dayLbl);
     });
     // 手繪邊框
     const frame = document.createElementNS('http://www.w3.org/2000/svg','rect');
@@ -207,7 +219,7 @@
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
   function fmtDate(d){ return d.toISOString().slice(0,10); }
 
-  function renderCalendar(tasks){
+  async function renderCalendar(tasks){
     if(!calEl) return;
     calEl.innerHTML = '';
     currentDateLabel.textContent = anchor.toISOString().slice(0,10);
@@ -231,12 +243,46 @@
       const k = fmtDate(d);
       (map[k]||[]).forEach(t=>{
         const a = document.createElement('a'); a.href='#'; a.className='cal-item'; a.textContent = t.title; a.title = t.title;
+        // 拖拽改期：拖起任務 id
+        a.draggable = true;
+        a.addEventListener('dragstart', (ev)=>{ ev.dataTransfer.setData('text/task', t.id); });
         a.addEventListener('click', (ev)=>{ev.preventDefault(); openEditModal(t);});
         cell.appendChild(a);
+      });
+      // 放下到某天 -> reschedule
+      cell.addEventListener('dragover', (ev)=>{ if (ev.dataTransfer.types.includes('text/task')) ev.preventDefault(); });
+      cell.addEventListener('drop', async (ev)=>{
+        ev.preventDefault();
+        const taskId = ev.dataTransfer.getData('text/task');
+        if(taskId){
+          await fetch(`/tasks/${taskId}/reschedule`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ date: k }).toString() });
+          fetchTasks();
+        }
       });
       grid.appendChild(cell);
     });
     calEl.appendChild(grid);
+
+    // 日曆記事（notes）：取目前區間的 notes 並渲染
+    const start = days[0]; const end = days[days.length-1];
+    try {
+      const res = await fetch(`/notes?start=${fmtDate(start)}&end=${fmtDate(end)}`);
+      const notes = await res.json();
+      const noteMap = notes.reduce((m,n)=>{ (m[n.date]||(m[n.date]=[])).push(n); return m; }, {});
+      Array.from(grid.children).forEach((cell,idx)=>{
+        const k = fmtDate(days[idx]);
+        (noteMap[k]||[]).forEach(n=>{
+          const a = document.createElement('a'); a.href='#'; a.className='cal-item cal-note'; a.textContent = n.content.slice(0,18);
+          a.title = n.content;
+          a.addEventListener('click', (ev)=>{ ev.preventDefault(); openNoteModal(k, n); });
+          cell.appendChild(a);
+        });
+        // 新增記事入口
+        const addBtn = document.createElement('button'); addBtn.className='btn'; addBtn.textContent='＋'; addBtn.style.marginTop='6px';
+        addBtn.addEventListener('click', ()=>openNoteModal(k));
+        cell.appendChild(addBtn);
+      });
+    } catch(e) {}
   }
 
   document.querySelectorAll('.view-switch [data-view]')?.forEach(btn=>{
@@ -249,6 +295,8 @@
   // ======= Modal (手繪風編輯表單) =======
   const modal = el('#modal');
   const modalForm = el('#modalForm');
+  const btnModalDelete = el('#btnModalDelete');
+  // 可複用於 Task 或 Note
   function openEditModal(task){
     modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false');
     modalForm.id.value = task.id;
@@ -265,6 +313,19 @@
   }
   function closeModal(){ modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); }
   el('#btnModalCancel')?.addEventListener('click', closeModal);
+  btnModalDelete?.addEventListener('click', async ()=>{
+    const id = modalForm.id.value;
+    if (modalForm.getAttribute('data-kind') === 'note') {
+      // notes 刪除
+      if (!id) { closeModal(); return; }
+      await fetch('/notes', { method:'DELETE', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({id}).toString() });
+    } else {
+      // tasks 刪除
+      if (!id) { closeModal(); return; }
+      await fetch(`/tasks/${id}`, { method:'DELETE' });
+    }
+    closeModal(); fetchTasks();
+  });
   modalForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const id = modalForm.id.value;
@@ -272,6 +333,36 @@
     await fetch(`/tasks/${id}`, { method:'PUT', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
     closeModal(); fetchTasks();
   });
+
+  // Note Modal（簡化：用同一張卡，但只啟用 content/date/id）
+  function openNoteModal(date, note){
+    modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false');
+    modalForm.reset();
+    modalForm.id.value = note? note.id : '';
+    modalForm.title.value = note? ('記事：'+(note.content||'').slice(0,12)) : '記事';
+    modalForm.description.value = note? note.content||'' : '';
+    modalForm.priority.value = 'MEDIUM';
+    modalForm.status.value = 'PENDING';
+    modalForm.dueDateTime.value = date + ' 12:00';
+    modalForm.estimatedMinutes.value = 15;
+    modalForm.category.value = 'note';
+    modalForm.actualMinutes.value = '';
+    modalForm.reminderBeforeMinutes.value = '';
+    modalForm.tags.value = 'note';
+    // 暫存一個旗標以區分儲存到 notes 還是 tasks
+    modalForm.setAttribute('data-kind','note');
+  }
+  modalForm?.addEventListener('submit', async (e)=>{
+    if (modalForm.getAttribute('data-kind') !== 'note') return; // 由上面的 submit 處理 tasks
+    e.preventDefault();
+    const id = modalForm.id.value || '';
+    const date = (modalForm.dueDateTime.value||'').slice(0,10) || new Date().toISOString().slice(0,10);
+    const content = modalForm.description.value || modalForm.title.value || '記事';
+    const body = new URLSearchParams({ id, date, content });
+    await fetch('/notes', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body });
+    modalForm.removeAttribute('data-kind');
+    closeModal(); fetchTasks();
+  }, true);
 })();
 
 

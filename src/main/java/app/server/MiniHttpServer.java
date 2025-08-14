@@ -3,6 +3,9 @@ package app.server;
 import app.model.Task;
 import app.model.TaskPriority;
 import app.service.SuggestionService;
+import app.model.Note;
+import app.repo.FileNoteRepository;
+import app.service.NoteService;
 import app.service.TaskService;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -17,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -38,6 +42,9 @@ public class MiniHttpServer {
         if (server != null) return;
         server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/tasks", new TasksHandler(taskService, suggestionService));
+        // calendar notes
+        NoteService noteService = new NoteService(new FileNoteRepository(Path.of("data","notes.csv")));
+        server.createContext("/notes", new NotesHandler(noteService));
         server.createContext("/", new StaticHandler(Paths.get("public")));
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
@@ -138,6 +145,16 @@ public class MiniHttpServer {
                     sendJson(exchange, ok?200:404, ok?"{\"ok\":true}":"{\"ok\":false}");
                     return;
                 }
+                if (path.matches("^/tasks/[a-zA-Z0-9\\-]+/reschedule$")) {
+                    String id = path.substring("/tasks/".length(), path.length()-"/reschedule".length());
+                    Map<String,String> form = parseForm(exchange);
+                    String dateStr = form.get("date");
+                    if (dateStr==null || dateStr.isEmpty()) { sendJson(exchange,400,"{\"ok\":false,\"error\":\"date_required\"}"); return; }
+                    LocalDate date = LocalDate.parse(dateStr);
+                    boolean ok = taskService.rescheduleDate(id, date, null);
+                    sendJson(exchange, ok?200:404, ok?"{\"ok\":true}":"{\"ok\":false}");
+                    return;
+                }
             }
 
             if ("DELETE".equalsIgnoreCase(method)) {
@@ -217,6 +234,13 @@ public class MiniHttpServer {
         public void handle(HttpExchange exchange) throws IOException {
             String path = exchange.getRequestURI().getPath();
             if (path.equals("/")) path = "/index.html";
+            // Silence favicon.ico 404: return 204 No Content when not present
+            if (path.equals("/favicon.ico")) {
+                if (!Files.exists(baseDir.resolve("favicon.ico"))) {
+                    exchange.sendResponseHeaders(204, -1);
+                    return;
+                }
+            }
             Path file = baseDir.resolve(path.substring(1)).normalize();
             if (!file.startsWith(baseDir) || !Files.exists(file) || Files.isDirectory(file)) {
                 byte[] nf = "Not Found".getBytes(StandardCharsets.UTF_8);
@@ -245,6 +269,21 @@ public class MiniHttpServer {
 
     // Minimal JSON util (only for our Task fields)
     static class JsonUtil {
+        static String toJsonNotes(List<Note> notes) {
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            boolean first = true;
+            for (Note n : notes) {
+                if (!first) sb.append(','); first=false;
+                sb.append('{')
+                        .append("\"id\":\"").append(escape(n.getId()==null?"":n.getId())).append('\"').append(',')
+                        .append("\"date\":\"").append(n.getDate()==null?"":n.getDate().toString()).append('\"').append(',')
+                        .append("\"content\":\"").append(escape(n.getContent()==null?"":n.getContent())).append('\"')
+                        .append('}');
+            }
+            sb.append(']');
+            return sb.toString();
+        }
         static String toJson(List<Task> tasks) {
             StringBuilder sb = new StringBuilder();
             sb.append('[');
@@ -304,6 +343,38 @@ public class MiniHttpServer {
                 }
             }
             return sb.toString();
+        }
+    }
+    // Notes handler
+    static class NotesHandler implements HttpHandler {
+        private final NoteService noteService;
+        NotesHandler(NoteService s){ this.noteService = s; }
+        @Override public void handle(HttpExchange exchange) throws IOException {
+            String method = exchange.getRequestMethod();
+            if ("GET".equalsIgnoreCase(method)) {
+                Map<String,String> q = new HashMap<>();
+                String raw = exchange.getRequestURI().getQuery();
+                if (raw!=null) for(String p: raw.split("&")){ int i=p.indexOf('='); if(i>0) q.put(URLDecoder.decode(p.substring(0,i), StandardCharsets.UTF_8), URLDecoder.decode(p.substring(i+1), StandardCharsets.UTF_8)); }
+                LocalDate start = LocalDate.parse(q.getOrDefault("start", LocalDate.now().minusDays(7).toString()));
+                LocalDate end = LocalDate.parse(q.getOrDefault("end", LocalDate.now().plusDays(35).toString()));
+                String json = JsonUtil.toJsonNotes(noteService.listByRange(start, end));
+                TasksHandler.sendJson(exchange, 200, json); return;
+            }
+            if ("POST".equalsIgnoreCase(method)) {
+                Map<String,String> form = TasksHandler.parseForm(exchange);
+                LocalDate date = LocalDate.parse(form.get("date"));
+                String content = form.getOrDefault("content","");
+                String id = form.get("id");
+                Note n = noteService.upsert(date, content, id);
+                TasksHandler.sendJson(exchange, 201, "{\"ok\":true,\"id\":\""+n.getId()+"\"}"); return;
+            }
+            if ("DELETE".equalsIgnoreCase(method)) {
+                Map<String,String> form = TasksHandler.parseForm(exchange);
+                String id = form.get("id");
+                if (id!=null) noteService.delete(id);
+                TasksHandler.sendJson(exchange, 200, "{\"ok\":true}"); return;
+            }
+            exchange.sendResponseHeaders(405,-1);
         }
     }
 }

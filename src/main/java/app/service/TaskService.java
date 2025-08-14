@@ -6,6 +6,8 @@ import app.model.TaskStatus;
 import app.repo.TaskRepository;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -91,6 +93,20 @@ public class TaskService {
         LocalDateTime due = t.getDueDateTime();
         if (due == null) due = LocalDateTime.now();
         t.setDueDateTime(due.plusMinutes(Math.max(1, minutes)));
+        repository.upsert(t);
+        return true;
+    }
+
+    public boolean rescheduleDate(String id, LocalDate newDate, LocalTime keepOrUseTime) {
+        Optional<Task> opt = repository.findById(id);
+        if (opt.isEmpty()) return false;
+        Task t = opt.get();
+        LocalTime time = keepOrUseTime;
+        if (time == null) {
+            LocalDateTime due = t.getDueDateTime();
+            time = (due != null) ? due.toLocalTime() : LocalTime.NOON;
+        }
+        t.setDueDateTime(LocalDateTime.of(newDate, time));
         repository.upsert(t);
         return true;
     }
