@@ -18,6 +18,8 @@
   const btnBatchRescheduleToSel = el('#btnBatchRescheduleToSel');
   const timeline = el('#timeline');
   const timeContainer = el('#timeContainer');
+  const weekNoLabel = el('#weekNoLabel');
+  const zoomSelect = el('#zoomSelect');
   let view = 'month';
   let anchor = new Date();
   let multiSel = new Set();
@@ -29,6 +31,7 @@
     renderTasks(data);
     renderStats(data);
     renderCalendar(data);
+    updateShareLink();
   }
 
   function escapeHtml(str){
@@ -272,11 +275,14 @@
     if (pr) tasks = tasks.filter(t=> (t.priority||'').toUpperCase()===pr);
     if (tg) tasks = tasks.filter(t=> (t.tags||[]).some(x=>x.toLowerCase()===tg));
     const map = tasks.reduce((m,t)=>{ if(!t.dueDateTime) return m; const k=t.dueDateTime.slice(0,10); (m[k]||(m[k]=[])).push(t); return m; }, {});
+    // 熱力圖模式（僅月視圖）：根據某日完成數量改變背景濃淡
+    const heat = (el,count)=>{ if(!heatmapEnabled || view!=='month') return; const alpha=Math.min(0.35, 0.06*count); el.style.background = `rgba(226, 121, 95, ${alpha})`; };
     days.forEach(d=>{
       const cell = document.createElement('div'); cell.className='cal-cell';
       const dateSpan = document.createElement('span'); dateSpan.className='cal-date'; dateSpan.textContent = d.getDate();
       cell.appendChild(dateSpan);
       const k = fmtDate(d);
+      heat(cell, (map[k]||[]).filter(x=>x.status==='COMPLETED').length);
       // 多日選取（Shift 點擊）
       cell.addEventListener('click', (ev)=>{ if (!ev.shiftKey) return; if (multiSel.has(k)) multiSel.delete(k); else multiSel.add(k); updateSelUi(); });
       (map[k]||[]).forEach(t=>{
@@ -304,6 +310,8 @@
       grid.appendChild(cell);
     });
     calEl.appendChild(grid);
+    // 顯示 ISO 週次
+    weekNoLabel.textContent = view==='week' ? `Week ${getIsoWeek(anchor)}` : '';
 
     // 日曆記事（notes）：取目前區間的 notes 並渲染
     const start = days[0]; const end = days[days.length-1];
@@ -330,7 +338,7 @@
   function renderTimeline(tasks){
     timeline.classList.remove('hidden');
     timeContainer.innerHTML='';
-    const hours = 24, hourHeight = 37.5; // 對應 CSS
+    const hours = 24; const unit = parseInt(zoomSelect?.value||'30',10); const hourHeight = unit===60?75:(unit===30?37.5:18.75);
     const cols = view==='day' ? 1 : 7;
     timeContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     const base = view==='day' ? [new Date(anchor)] : Array.from({length:7},(_,i)=>addDays(startOfWeek(anchor), i));
@@ -368,6 +376,11 @@
     });
   }
 
+  function getIsoWeek(d){ const date=new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const dayNum=(date.getUTCDay()||7); date.setUTCDate(date.getUTCDate()+4-dayNum); const yearStart=new Date(Date.UTC(date.getUTCFullYear(),0,1)); return Math.ceil((((date-yearStart)/86400000)+1)/7); }
+  function updateShareLink(){ const params=new URLSearchParams({ view, date: anchor.toISOString().slice(0,10) }); history.replaceState(null,'',`?${params.toString()}`); }
+  (function readShareLink(){ const u=new URL(location.href); const v=u.searchParams.get('view'); const d=u.searchParams.get('date'); if(v){ view=v; document.querySelectorAll('.view-switch [data-view]').forEach(b=>b.classList.toggle('primary', b.getAttribute('data-view')===v)); } if(d){ const [y,m,dd]=d.split('-'); anchor=new Date(parseInt(y), parseInt(m)-1, parseInt(dd)); } })();
+  zoomSelect?.addEventListener('change', fetchTasks);
+
   document.querySelectorAll('.view-switch [data-view]')?.forEach(btn=>{
     btn.addEventListener('click', ()=>{ document.querySelectorAll('.view-switch [data-view]').forEach(b=>b.classList.remove('primary')); btn.classList.add('primary'); view = btn.getAttribute('data-view'); fetchTasks(); });
   });
@@ -383,6 +396,8 @@
   weekStartSelect?.addEventListener('change', ()=>{ localStorage.setItem('weekStart', weekStartSelect.value); fetchTasks(); });
   (function initWeekStart(){ const ws=localStorage.getItem('weekStart')||'mon'; weekStartSelect.value=ws; })();
   [searchInput, statusSelect, prioritySelect, tagInput].forEach(x=> x && x.addEventListener('change', fetchTasks));
+  let heatmapEnabled=false; el('#btnHeatmap')?.addEventListener('click', ()=>{ heatmapEnabled=!heatmapEnabled; fetchTasks(); });
+  el('#btnShare')?.addEventListener('click', ()=>{ navigator.clipboard?.writeText(location.href); alert('連結已複製'); });
 
   function updateSelUi(){
     selCount.textContent = multiSel.size;

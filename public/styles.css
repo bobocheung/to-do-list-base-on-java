@@ -56,7 +56,7 @@ body {
 .time-col { position:relative; border:2px solid #222; border-radius:12px; background:#fff; min-height:900px; }
 .time-hour { position:absolute; left:0; right:0; height:1px; background:#eee; }
 .time-labels { position:absolute; left:-48px; top:0; width:40px; font-size:12px; color:var(--muted); }
-.time-label { height:37.5px; } /* 24 份約 900px -> 每小時約37.5 */
+.time-label { height:37.5px; } /* 24 份約 900px -> 每小時約37.5（可縮放）*/
 .event-block { position:absolute; left:6px; right:6px; border:3px solid #222; border-radius:12px; background:#ffe1de; box-shadow:4px 4px 0 rgba(0,0,0,.1); cursor:grab; }
 .event-handle { position:absolute; left:0; right:0; height:8px; background:rgba(0,0,0,.05); border-top:2px solid #222; border-bottom-left-radius:12px; border-bottom-right-radius:12px; cursor:ns-resize; bottom:0; }
 

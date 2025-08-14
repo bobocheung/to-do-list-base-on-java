@@ -26,6 +26,7 @@
               <button type="button" class="btn" data-view="week" title="快捷鍵 2">週</button>
               <button type="button" class="btn primary" data-view="month" title="快捷鍵 3">月</button>
               <span id="currentDateLabel" class="pill" style="margin-left:8px"></span>
+              <span id="weekNoLabel" class="pill" title="ISO 週次"></span>
               <button type="button" class="btn" id="btnPrev" title="← 上一頁">←</button>
               <button type="button" class="btn" id="btnToday" title="快捷鍵 T">今天</button>
               <button type="button" class="btn" id="btnNext" title="→ 下一頁">→</button>
@@ -36,6 +37,15 @@
                 </select>
               </label>
               <button type="button" class="btn" id="btnQuickToday" title="快速在今天建立任務">今天＋</button>
+              <label class="pill" style="margin-left:12px">縮放
+                <select id="zoomSelect" title="時間軸縮放">
+                  <option value="60">60分/時</option>
+                  <option value="30" selected>30分/時</option>
+                  <option value="15">15分/時</option>
+                </select>
+              </label>
+              <button type="button" class="btn" id="btnHeatmap" title="切換月視圖熱力圖">熱力圖</button>
+              <button type="button" class="btn" id="btnShare" title="複製分享連結">分享</button>
             </div>
           </div>
           <div class="tip">提示：
