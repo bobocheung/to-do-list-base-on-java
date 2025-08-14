@@ -6,8 +6,15 @@
   const btnRefresh = el('#btnRefresh');
   const calEl = el('#calendar');
   const currentDateLabel = el('#currentDateLabel');
+  const weekStartSelect = el('#weekStartSelect');
+  const searchInput = el('#searchInput');
+  const calToolbar = el('#calendarToolbar');
+  const selCount = el('#selCount');
+  const btnMakeNotes = el('#btnMakeNotes');
+  const btnClearSel = el('#btnClearSel');
   let view = 'month';
   let anchor = new Date();
+  let multiSel = new Set();
 
   async function fetchTasks() {
     const url = chkSuggested.checked ? '/tasks?suggested=true' : '/tasks';
@@ -214,7 +221,8 @@
   }
 
   // ======= Calendar (Notion 風格簡化，手繪格線) =======
-  function startOfWeek(d){ const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()-((day+6)%7)); x.setHours(0,0,0,0); return x; }
+  function getWeekStart(){ return (localStorage.getItem('weekStart')||'mon')==='sun' ? 0 : 1; }
+  function startOfWeek(d){ const x=new Date(d); const day=x.getDay(); const ws=getWeekStart(); const delta=(day-(ws===1?1:0)+7)%7; x.setDate(x.getDate()-delta); x.setHours(0,0,0,0); return x; }
   function startOfMonth(d){ const x=new Date(d.getFullYear(), d.getMonth(), 1); x.setHours(0,0,0,0); return x; }
   function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
   function fmtDate(d){ return d.toISOString().slice(0,10); }
@@ -235,12 +243,17 @@
       const s = startOfMonth(anchor); const start = startOfWeek(s); for(let i=0;i<42;i++) days.push(addDays(start,i));
       grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
     }
+    // 搜尋/過濾
+    const q = (searchInput?.value||'').trim().toLowerCase();
+    if (q) tasks = tasks.filter(t => (t.title||'').toLowerCase().includes(q) || (t.tags||[]).some(tag=>tag.toLowerCase().includes(q)) );
     const map = tasks.reduce((m,t)=>{ if(!t.dueDateTime) return m; const k=t.dueDateTime.slice(0,10); (m[k]||(m[k]=[])).push(t); return m; }, {});
     days.forEach(d=>{
       const cell = document.createElement('div'); cell.className='cal-cell';
       const dateSpan = document.createElement('span'); dateSpan.className='cal-date'; dateSpan.textContent = d.getDate();
       cell.appendChild(dateSpan);
       const k = fmtDate(d);
+      // 多日選取（Shift 點擊）
+      cell.addEventListener('click', (ev)=>{ if (!ev.shiftKey) return; if (multiSel.has(k)) multiSel.delete(k); else multiSel.add(k); updateSelUi(); });
       (map[k]||[]).forEach(t=>{
         const a = document.createElement('a'); a.href='#'; a.className='cal-item'; a.textContent = t.title; a.title = t.title;
         // 拖拽改期：拖起任務 id
@@ -291,6 +304,40 @@
   el('#btnPrev')?.addEventListener('click', ()=>{ if(view==='day') anchor=addDays(anchor,-1); else if(view==='week') anchor=addDays(anchor,-7); else anchor=new Date(anchor.getFullYear(), anchor.getMonth()-1, 1); fetchTasks(); });
   el('#btnToday')?.addEventListener('click', ()=>{ anchor=new Date(); fetchTasks(); });
   el('#btnNext')?.addEventListener('click', ()=>{ if(view==='day') anchor=addDays(anchor,1); else if(view==='week') anchor=addDays(anchor,7); else anchor=new Date(anchor.getFullYear(), anchor.getMonth()+1, 1); fetchTasks(); });
+  el('#btnQuickToday')?.addEventListener('click', async ()=>{
+    const title = prompt('快速新增（今天）標題'); if(!title) return;
+    const due = new Date(); const yyyy=due.getFullYear(); const mm=('0'+(due.getMonth()+1)).slice(-2); const dd=('0'+due.getDate()).slice(-2); const hh='12', mi='00';
+    await fetch('/tasks', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ title, dueDateTime: `${yyyy}-${mm}-${dd} ${hh}:${mi}`, priority:'MEDIUM', estimatedMinutes:'30' }).toString() });
+    fetchTasks();
+  });
+  weekStartSelect?.addEventListener('change', ()=>{ localStorage.setItem('weekStart', weekStartSelect.value); fetchTasks(); });
+  (function initWeekStart(){ const ws=localStorage.getItem('weekStart')||'mon'; weekStartSelect.value=ws; })();
+
+  function updateSelUi(){
+    selCount.textContent = multiSel.size;
+    calToolbar.classList.toggle('hidden', multiSel.size===0);
+    document.querySelectorAll('.cal-cell').forEach((cell,idx)=>{
+      const k = fmtDate(view==='day' ? anchor : (view==='week' ? addDays(startOfWeek(anchor), idx) : addDays(startOfWeek(new Date(anchor.getFullYear(), anchor.getMonth(), 1)), idx)));
+      if (multiSel.has(k)) cell.classList.add('sel'); else cell.classList.remove('sel');
+    });
+  }
+  btnClearSel?.addEventListener('click', ()=>{ multiSel.clear(); updateSelUi(); });
+  btnMakeNotes?.addEventListener('click', async ()=>{
+    const content = prompt(`於 ${multiSel.size} 天建立相同記事，請輸入內容`); if(!content) return;
+    for (const k of multiSel) {
+      await fetch('/notes', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ date:k, content }).toString() });
+    }
+    multiSel.clear(); fetchTasks();
+  });
+
+  // 視圖切換快捷鍵 1/2/3，T 回今天
+  window.addEventListener('keydown', (e)=>{
+    if (e.target && ['INPUT','TEXTAREA','SELECT','BUTTON','A'].includes(e.target.tagName)) return;
+    if (e.key==='1'){ view='day'; fetchTasks(); }
+    if (e.key==='2'){ view='week'; fetchTasks(); }
+    if (e.key==='3'){ view='month'; fetchTasks(); }
+    if (e.key.toLowerCase()==='t'){ anchor=new Date(); fetchTasks(); }
+  });
 
   // ======= Modal (手繪風編輯表單) =======
   const modal = el('#modal');

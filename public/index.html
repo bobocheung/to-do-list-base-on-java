@@ -22,14 +22,26 @@
         <form id="taskForm" class="task-form">
           <div class="row">
             <div class="view-switch">
-              <button type="button" class="btn" data-view="day">日</button>
-              <button type="button" class="btn" data-view="week">週</button>
-              <button type="button" class="btn primary" data-view="month">月</button>
+              <button type="button" class="btn" data-view="day" title="快捷鍵 1">日</button>
+              <button type="button" class="btn" data-view="week" title="快捷鍵 2">週</button>
+              <button type="button" class="btn primary" data-view="month" title="快捷鍵 3">月</button>
               <span id="currentDateLabel" class="pill" style="margin-left:8px"></span>
-              <button type="button" class="btn" id="btnPrev">←</button>
-              <button type="button" class="btn" id="btnToday">今天</button>
-              <button type="button" class="btn" id="btnNext">→</button>
+              <button type="button" class="btn" id="btnPrev" title="← 上一頁">←</button>
+              <button type="button" class="btn" id="btnToday" title="快捷鍵 T">今天</button>
+              <button type="button" class="btn" id="btnNext" title="→ 下一頁">→</button>
+              <label class="pill" style="margin-left:12px">週起始
+                <select id="weekStartSelect" title="切換週起始（會記住設定）">
+                  <option value="mon">星期一</option>
+                  <option value="sun">星期日</option>
+                </select>
+              </label>
+              <button type="button" class="btn" id="btnQuickToday" title="快速在今天建立任務">今天＋</button>
             </div>
+          </div>
+          <div class="tip">提示：
+            - 雙擊任務可開啟手繪風編輯窗。
+            - 在日曆上拖動任務即可改期。按住 Shift 點擊多個日期可一次建立多筆記事。
+            - 快捷鍵：1/2/3 切換 日/週/月，左右鍵翻頁，T 回到今天，R 重新整理，N 聚焦標題。
           </div>
           <div class="row">
             <label>標題</label>
@@ -94,6 +106,7 @@
 
       <section>
         <div class="row">
+          <input id="searchInput" class="search" placeholder="搜尋標題或標籤（Enter 確認）" />
           <button id="btnExport" type="button" class="btn">匯出 JSON</button>
           <button id="btnBatchComplete" type="button" class="btn">批次完成（選取）</button>
           <button id="btnBatchDelete" type="button" class="btn">批次刪除（選取）</button>
@@ -107,7 +120,12 @@
           <svg id="chart" width="100%" height="160" viewBox="0 0 600 160"></svg>
         </div>
 
-        <div id="calendar" class="calendar"></div>
+        <div id="calendarToolbar" class="cal-toolbar hidden">
+          <span id="selCount">0</span> 天已選擇
+          <button id="btnMakeNotes" type="button" class="btn" title="於所選日期建立同內容記事">建立記事</button>
+          <button id="btnClearSel" type="button" class="btn">清除選取</button>
+        </div>
+        <div id="calendar" class="calendar" aria-label="日曆視圖"></div>
       </section>
 
       <!-- 手繪風彈窗（編輯/新增） -->
