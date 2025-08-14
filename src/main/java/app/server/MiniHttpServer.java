@@ -74,7 +74,18 @@ public class MiniHttpServer {
                 String status = getQueryParam(exchange, "status");
                 String priority = getQueryParam(exchange, "priority");
                 String tag = getQueryParam(exchange, "tag");
+                String startStr = getQueryParam(exchange, "start");
+                String endStr = getQueryParam(exchange, "end");
                 List<Task> tasks = (status!=null||priority!=null||tag!=null) ? taskService.filter(status, priority, tag) : taskService.listAll();
+                if (startStr != null && endStr != null) {
+                    try {
+                        java.time.LocalDate start = java.time.LocalDate.parse(startStr);
+                        java.time.LocalDate end = java.time.LocalDate.parse(endStr);
+                        tasks = tasks.stream().filter(t -> t.getDueDateTime()!=null &&
+                                !t.getDueDateTime().toLocalDate().isBefore(start) && !t.getDueDateTime().toLocalDate().isAfter(end))
+                                .toList();
+                    } catch (Exception ignored) {}
+                }
                 if (suggested) tasks = suggestionService.sortBySmartHeuristics(tasks);
                 sendJson(exchange, 200, JsonUtil.toJson(tasks));
                 return;

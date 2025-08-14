@@ -38,6 +38,8 @@ body {
 .cal-date { position: absolute; top: 6px; right: 10px; font-size: 12px; color: var(--muted); }
 .cal-item { display: block; margin: 4px 0; padding: 4px 6px; border: 2px solid #222; border-radius: 8px; background:#ffe1de; font-size: 12px; }
 .cal-note { background:#d7f0ff; }
+.cal-today { outline: 3px dashed #222; outline-offset: -6px; }
+.weekend { background: #faf5ef; }
 .legend { display:flex; gap:12px; align-items:center; margin:8px 0; color:var(--muted); }
 .legend .swatch { display:inline-block; width:14px; height:14px; border:2px solid #222; border-radius:4px; margin-right:6px; }
 
